@@ -1,0 +1,20 @@
+# Ignore Directory
+Library/
+obj/
+.vs/
+
+# Ignore File
+*.unity
+*.csproj
+*.sln
+*.suo
+*.dll
+*.json
+*.pdb
+*.exe
+*.meta
+*.asset
+*.log
+*.txt
+*.rsp
+.vsconfig
