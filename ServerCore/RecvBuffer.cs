@@ -45,7 +45,7 @@ namespace ServerCore
                 _usedSize = 0;
             else
             {
-                Array.Copy(buffer.Array, buffer.Offset + _usedSize, buffer.Array, buffer.Offset, dataSize);
+                Array.Copy(buffer.Array, buffer.Offset + _usedSize, buffer.Array, buffer.Offset, _freeSize);
                 _usedSize = dataSize;
             }
         }
