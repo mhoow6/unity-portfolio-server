@@ -32,6 +32,7 @@ namespace ServerCore
             }
         }
 
+        #region Connect 과정
         public void RegisterConnect(SocketAsyncEventArgs args)
         {
             Socket socket = args.UserToken as Socket;
@@ -59,5 +60,6 @@ namespace ServerCore
             else
                 Console.WriteLine($"[Connector] OnConnectCompleted 도중 {args.SocketError} 이 발생했습니다.");
         }
+        #endregion
     }
 }

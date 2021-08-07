@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace ServerCore
 {
@@ -12,9 +10,9 @@ namespace ServerCore
         ArraySegment<byte> buffer;
         int _usedSize = 0;
 
-        public SendBuffer()
+        public SendBuffer(int chunkSize)
         {
-            buffer = new ArraySegment<byte>(new byte[BUFFERSIZE], _usedSize, BUFFERSIZE);
+            buffer = new ArraySegment<byte>(new byte[chunkSize], _usedSize, chunkSize);
         }
 
         public ArraySegment<byte> Reserve(int reserveSize)
@@ -31,8 +29,11 @@ namespace ServerCore
 
         public ArraySegment<byte> Close(int usedSize)
         {
+            ArraySegment<byte> usedBuff = new ArraySegment<byte>(buffer.Array, buffer.Offset + _usedSize, usedSize);
+
             _usedSize += usedSize;
-            return new ArraySegment<byte>(buffer.Array, buffer.Offset, _usedSize);
+
+            return usedBuff;
         }
     }
 }

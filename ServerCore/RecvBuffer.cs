@@ -50,6 +50,11 @@ namespace ServerCore
             }
         }
 
+        /// <summary>
+        /// RecvBuffer의 커서를 사용한 용량만큼 옮겨야합니다. RecvBuffer 사용 후 반드시 호출하세요.
+        /// </summary>
+        /// <param name="usedSize"></param>
+        /// <returns>남은 공간보다 더 많은 양을 사용했다면 사용에 실패한 것이므로 false를 return합니다.</returns>
         public bool Used(int usedSize)
         {
             if (_freeSize < usedSize)

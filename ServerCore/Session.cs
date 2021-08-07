@@ -1,26 +1,37 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 
 namespace ServerCore
 {
     public abstract class Session
     {
+        public int sessionId;
+
+        protected int HEADERSIZE { get => 4; }
+        protected int ERROR { get => -1; }
+
+        // 연결된 소켓
         Socket socket;
 
-        SocketAsyncEventArgs sendAsyncArgs;
+        SocketAsyncEventArgs sendAsyncArgs = new SocketAsyncEventArgs();
         Queue<ArraySegment<byte>> sendQueue = new Queue<ArraySegment<byte>>();
         List<ArraySegment<byte>> pendingList = new List<ArraySegment<byte>>();
         
-        SocketAsyncEventArgs recvAsyncArgs;
+        SocketAsyncEventArgs recvAsyncArgs = new SocketAsyncEventArgs();
         RecvBuffer recvBuffer = new RecvBuffer();
         
         // For Lock
         Object _lock = new Object();
 
+        // For Disconnection flag
+        int IsDisconnected;
+
         public abstract void OnConnected(EndPoint endPoint);
+        public abstract void OnDisconnected(EndPoint endPoint);
+
         public abstract int OnRecv(ArraySegment<byte> buffer);
 
         /// <summary>
@@ -30,8 +41,8 @@ namespace ServerCore
         public void Start(Socket sock)
         {
             socket = sock;
-            sendAsyncArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnRecvCompleted);
-            recvAsyncArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnSendCompleted);
+            sendAsyncArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnSendCompleted);
+            recvAsyncArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnRecvCompleted);
 
             RegisterRecv();
         }
@@ -59,6 +70,33 @@ namespace ServerCore
 
                 if (pendingList.Count == 0)
                     RegisterSend();
+            }
+        }
+
+        /// <summary>
+        /// 소켓 연결 끊김 시 처리해주는 함수
+        /// </summary>
+        public void Disconnect()
+        {
+            const int CONNECTED = 0;
+            const int DISCONNECTED = 1;
+
+            // 연결이 끊기기 전에 끊겼으면 다른 스레드가 이미 종료처리가 완료된 것이므로 또 할 필요가 없다.
+            if (Interlocked.Exchange(ref IsDisconnected, DISCONNECTED) == DISCONNECTED)
+                return;
+
+            // 콜백 함수
+            OnDisconnected(socket.RemoteEndPoint);
+
+            // 소켓 처리
+            socket.Shutdown(SocketShutdown.Both);
+            socket.Close();
+
+            // 더 이상 버퍼를 보낼 수 없으므로 큐, 리스트 초기화
+            lock (_lock)
+            {
+                sendQueue.Clear();
+                pendingList.Clear();
             }
         }
 
@@ -123,14 +161,21 @@ namespace ServerCore
 
             if (args.BytesTransferred > 0 && args.SocketError == SocketError.Success)
             {
-                OnRecv(args.Buffer);
-                RegisterRecv();
+                if (recvBuffer.Used(args.BytesTransferred))
+                {
+                    OnRecv(recvBuffer.ReadSegment);
+                    RegisterRecv();
+                }
+                else
+                {
+                    Console.WriteLine($"[Session] RecvBuffer 부족");
+                }
             }
             else
             {
                 Console.WriteLine($"[Session] OnRecvCompleted 도중 {args.SocketError} 이 발생했습니다.");
-                sock.Shutdown(SocketShutdown.Both);
-                sock.Close();
+
+                Disconnect();
             }
         }
         #endregion
@@ -140,12 +185,17 @@ namespace ServerCore
     {
         public sealed override void OnConnected(EndPoint endPoint)
         {
-            Console.WriteLine($"[ServerSession] [{endPoint}]에서 연결하였습니다.");
+            Console.WriteLine($"[Client:ServerSession] {endPoint}와 연결하였습니다.");
+        }
+
+        public override void OnDisconnected(EndPoint endPoint)
+        {
+            Console.WriteLine($"[Client:ServerSession] {endPoint}와 연결이 끊겼습니다");
         }
 
         public sealed override int OnRecv(ArraySegment<byte> buffer)
         {
-            Console.WriteLine($"[ServerSession] Receive 받고 할 일을 정하세요.");
+            Console.WriteLine($"[Client:ServerSession] Receive 받고 할 일을 정하세요.");
             return 0;
         }
     }
@@ -154,12 +204,49 @@ namespace ServerCore
     {
         public sealed override void OnConnected(EndPoint endPoint)
         {
-            Console.WriteLine($"[ClientSession] [{endPoint}]에서 연결하였습니다.");
+            Console.WriteLine($"[Server:ClientSession] {endPoint}에서 연결하였습니다.");
+        }
+
+        public override void OnDisconnected(EndPoint endPoint)
+        {
+            Console.WriteLine($"[Server:ClientSession] {endPoint}와 연결이 끊겼습니다.");
         }
 
         public sealed override int OnRecv(ArraySegment<byte> buffer)
         {
-            Console.WriteLine($"[ClientSession] Receive 받고 할 일을 정하세요.");
+            int processLen = 0;
+            int packetCount = 0;
+
+            while (true)
+            {
+                ushort count = 0;
+
+                if (buffer.Count < HEADERSIZE)
+                    break;
+
+                // 헤더에 기록된 패킷 총 데이터량
+                byte[] bSize = new byte[sizeof(ushort)];
+                Array.Copy(buffer.Array, buffer.Offset, bSize, 0, bSize.Length);
+                ushort size = BitConverter.ToUInt16(bSize);
+                count += sizeof(ushort);
+
+                if (buffer.Count < size)
+                    break;
+
+                // 패킷 매니저에게 패킷 처리 부탁
+                byte[] bData = new byte[size];
+                Array.Copy(buffer.Array, buffer.Offset + count, bData, 0, bData.Length);
+                ArraySegment<byte> handleBuff = new ArraySegment<byte>(bData, 0, bData.Length);
+                PacketManager.Instance.OnRecvPacket(this, handleBuff);
+
+                // 처리한 패킷 수, 패킷 데이터 기록
+                processLen += size;
+                packetCount++;
+
+                // 버퍼 위치 재 조정
+                buffer = new ArraySegment<byte>(buffer.Array, buffer.Offset + size, buffer.Count - size);
+            }
+
             return 0;
         }
     }
