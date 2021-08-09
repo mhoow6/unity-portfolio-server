@@ -8,7 +8,9 @@ namespace ServerCore
     public enum PacketID
     {
         C_Chat = 1,
-        S_Chat
+        S_Chat,
+        C_FileDownload,
+        S_FileUpload
     }
 
     // -------- Header --------
@@ -28,21 +30,12 @@ namespace ServerCore
     // playerId      chat
     // -------- | ------ ... |
     // [][][][]   [][][] ... |
-    public class C_Chat : Packet
+    public abstract class ChatPacket : Packet
     {
-        public string Chat { get => chat; }
-        public uint PlayerId { get => playerId; }
+        public string chat;
+        public uint playerId;
 
-        string chat;
-        uint playerId;
-        public C_Chat(uint playerId = 0, string chat = "")
-        {
-            packetId = (ushort)PacketID.C_Chat;
-            this.playerId = playerId; // Test
-            this.chat = chat; // Test
-        }
-
-        public sealed override void Read(ArraySegment<byte> buffer)
+        public override void Read(ArraySegment<byte> buffer)
         {
             int count = 0;
 
@@ -52,11 +45,16 @@ namespace ServerCore
             this.playerId = BitConverter.ToUInt32(buffer.Array, buffer.Offset + count);
             count += sizeof(uint);
 
-            this.chat = BitConverter.ToString(buffer.Array, buffer.Offset + count);
+            unsafe
+            {
+                fixed (byte* ptr = &buffer.Array[buffer.Offset + count])
+                    this.chat = Encoding.Default.GetString(ptr, buffer.Count - count);
+            }
+
             count += this.chat.Length;
         }
 
-        public sealed override ArraySegment<byte> Write()
+        public override ArraySegment<byte> Write()
         {
             ushort count = 0;
             ArraySegment<byte> reserveBuffer = SendBufferHelper.Reserve(DEFAULT_RESERVE_SIZE);
@@ -86,6 +84,22 @@ namespace ServerCore
             ArraySegment<byte> sendBuffer = SendBufferHelper.Close(count);
 
             return sendBuffer;
+        }
+    }
+
+    public class C_Chat : ChatPacket
+    {
+        public C_Chat()
+        {
+            packetId = (ushort)PacketID.C_Chat;
+        }
+    }
+
+    public class S_Chat : ChatPacket
+    {
+        public S_Chat()
+        {
+            packetId = (ushort)PacketID.S_Chat;
         }
     }
 

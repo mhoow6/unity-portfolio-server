@@ -88,6 +88,9 @@ namespace ServerCore
             // 콜백 함수
             OnDisconnected(socket.RemoteEndPoint);
 
+            // 세션에서 킥
+            SessionManager.Instance.Kick(this);
+
             // 소켓 처리
             socket.Shutdown(SocketShutdown.Both);
             socket.Close();
@@ -123,8 +126,6 @@ namespace ServerCore
         {
             lock (_lock)
             {
-                Socket sock = args.UserToken as Socket;
-
                 if (args.BytesTransferred > 0 && args.SocketError == SocketError.Success)
                 {
                     args.BufferList = null;
@@ -136,8 +137,8 @@ namespace ServerCore
                 else
                 {
                     Console.WriteLine($"[Session] OnSendCompleted 도중 {args.SocketError} 이 발생했습니다.");
-                    sock.Shutdown(SocketShutdown.Both);
-                    sock.Close();
+                    socket.Shutdown(SocketShutdown.Both);
+                    socket.Close();
                 }
             }
 
@@ -157,8 +158,6 @@ namespace ServerCore
 
         void OnRecvCompleted(object sender, SocketAsyncEventArgs args)
         {
-            Socket sock = args.UserToken as Socket;
-
             if (args.BytesTransferred > 0 && args.SocketError == SocketError.Success)
             {
                 if (recvBuffer.Used(args.BytesTransferred))
@@ -181,61 +180,39 @@ namespace ServerCore
         #endregion
     }
 
-    public class ServerSession : Session
+    public class PacketSession : Session
     {
-        public sealed override void OnConnected(EndPoint endPoint)
+        public override void OnConnected(EndPoint endPoint)
         {
-            Console.WriteLine($"[Client:ServerSession] {endPoint}와 연결하였습니다.");
+            
         }
 
         public override void OnDisconnected(EndPoint endPoint)
         {
-            Console.WriteLine($"[Client:ServerSession] {endPoint}와 연결이 끊겼습니다");
+            
         }
 
-        public sealed override int OnRecv(ArraySegment<byte> buffer)
-        {
-            Console.WriteLine($"[Client:ServerSession] Receive 받고 할 일을 정하세요.");
-            return 0;
-        }
-    }
-
-    public class ClientSession : Session
-    {
-        public sealed override void OnConnected(EndPoint endPoint)
-        {
-            Console.WriteLine($"[Server:ClientSession] {endPoint}에서 연결하였습니다.");
-        }
-
-        public override void OnDisconnected(EndPoint endPoint)
-        {
-            Console.WriteLine($"[Server:ClientSession] {endPoint}와 연결이 끊겼습니다.");
-        }
-
-        public sealed override int OnRecv(ArraySegment<byte> buffer)
+        public override int OnRecv(ArraySegment<byte> buffer)
         {
             int processLen = 0;
             int packetCount = 0;
 
             while (true)
             {
-                ushort count = 0;
-
                 if (buffer.Count < HEADERSIZE)
                     break;
 
-                // 헤더에 기록된 패킷 총 데이터량
+                // 헤더에 기록된 패킷 총 길이
                 byte[] bSize = new byte[sizeof(ushort)];
                 Array.Copy(buffer.Array, buffer.Offset, bSize, 0, bSize.Length);
                 ushort size = BitConverter.ToUInt16(bSize);
-                count += sizeof(ushort);
 
                 if (buffer.Count < size)
                     break;
 
                 // 패킷 매니저에게 패킷 처리 부탁
                 byte[] bData = new byte[size];
-                Array.Copy(buffer.Array, buffer.Offset + count, bData, 0, bData.Length);
+                Array.Copy(buffer.Array, buffer.Offset, bData, 0, bData.Length);
                 ArraySegment<byte> handleBuff = new ArraySegment<byte>(bData, 0, bData.Length);
                 PacketManager.Instance.OnRecvPacket(this, handleBuff);
 
@@ -247,7 +224,33 @@ namespace ServerCore
                 buffer = new ArraySegment<byte>(buffer.Array, buffer.Offset + size, buffer.Count - size);
             }
 
-            return 0;
+            return processLen;
+        }
+    }
+
+    public class ServerSession : PacketSession
+    {
+        public override void OnConnected(EndPoint endPoint)
+        {
+            Console.WriteLine($"[ServerSession] 서버와 연결되었습니다.");
+        }
+
+        public override void OnDisconnected(EndPoint endPoint)
+        {
+            Console.WriteLine($"[ServerSession] 서버와 연결이 끊겼습니다.");
+        }
+    }
+
+    public class ClientSession : PacketSession
+    {
+        public override void OnConnected(EndPoint endPoint)
+        {
+            Console.WriteLine($"[ClientSession] {endPoint}가 연결하였습니다.");
+        }
+
+        public override void OnDisconnected(EndPoint endPoint)
+        {
+            Console.WriteLine($"[ClientSession] {endPoint}와 연결이 끊겼습니다.");
         }
     }
 }

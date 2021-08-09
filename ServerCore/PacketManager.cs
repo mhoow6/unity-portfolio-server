@@ -9,7 +9,7 @@ namespace ServerCore
         public static PacketManager Instance { get; } = new PacketManager();
 
         byte[] bPacketID = new byte[sizeof(ushort)];
-        Dictionary<ushort, Action<Session, Packet>> handler = new Dictionary<ushort, Action<Session, Packet>>();
+        Dictionary<ushort, Action<Session, ArraySegment<byte>>> handler = new Dictionary<ushort, Action<Session, ArraySegment<byte>>>();
 
         PacketManager()
         {
@@ -19,37 +19,25 @@ namespace ServerCore
         void Init()
         {
             handler.Add((ushort)PacketID.C_Chat, PacketHandler.C_ChatHandler);
+            handler.Add((ushort)PacketID.S_Chat, PacketHandler.S_ChatHandler);
         }
 
         
-        public void OnRecvPacket(ClientSession session, ArraySegment<byte> buffer)
+        public void OnRecvPacket(Session session, ArraySegment<byte> buffer)
         {
             ushort count = 0;
 
-            count += sizeof(ushort); // skip header-size
+            // 패킷 길이 스킵
+            count += sizeof(ushort);
 
             // 패킷 ID 파싱
             Array.Copy(buffer.Array, buffer.Offset + count, bPacketID, 0, sizeof(ushort));
             ushort packetID = BitConverter.ToUInt16(bPacketID);
-            count += sizeof(ushort);
 
-            Packet pkt = null;
-
-            switch (packetID)
-            {
-                case (ushort)PacketID.C_Chat:
-                    pkt = new C_Chat();  
-                    break;
-            }
-
-            if (pkt != null)
-            {
-                pkt.Read(buffer);
-
-                Action<Session, Packet> action;
-                if (handler.TryGetValue((ushort)PacketID.C_Chat, out action))
-                    action.Invoke(session, pkt);
-            }
+            // 패킷 ID에 따라 Init에서 지정한 함수 호출
+            Action<Session, ArraySegment<byte>> action;
+            if (handler.TryGetValue(packetID, out action))
+                action.Invoke(session, buffer);
         }  
     }
 }

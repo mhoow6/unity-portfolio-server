@@ -6,11 +6,22 @@ namespace ServerCore
 {
     public class PacketHandler
     {
-        public static void C_ChatHandler(Session session, Packet packet)
+        public static void C_ChatHandler(Session session, ArraySegment<byte> buffer)
         {
-            C_Chat pkt = packet as C_Chat;
+            S_Chat chat = new S_Chat();
+            chat.Read(buffer);
 
-            Console.WriteLine($"{pkt.PlayerId} 에서 온 채팅내용: {pkt.Chat}");
+            ArraySegment<byte> sendBuffer = chat.Write();
+
+            SessionManager.Instance.Find(session.sessionId).Send(sendBuffer);
+        }
+
+        public static void S_ChatHandler(Session session, ArraySegment<byte> buffer)
+        {
+            C_Chat chat = new C_Chat();
+            chat.Read(buffer);
+
+            Console.WriteLine($"[전체채팅] {chat.playerId}: {chat.chat}");
         }
     }
 }

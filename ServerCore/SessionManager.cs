@@ -8,12 +8,14 @@ namespace ServerCore
     {
         public static SessionManager Instance { get; } = new SessionManager();
 
-        // 클라와 만든 서버와의 연결 세션들
+        // 1 클라 -> 1 서버세션
+        // 단일 클라이언트는 하나의 서버세션만을 갖는다.
         List<ServerSession> serverSessions = new List<ServerSession>();
 
-        // 서버가 만든 클라와의 연결 세션들
-        List<ClientSession> clientSessions = new List<ClientSession>();
-        int sessionId = 0;
+        // 1 서버 -> n 클라세션
+        Dictionary<int, ClientSession> clientSessions = new Dictionary<int, ClientSession>();
+        List<ArraySegment<byte>> pendingBuffs = new List<ArraySegment<byte>>();
+        int _sessionId = 0;
 
         Object _lock = new object();
 
@@ -22,16 +24,47 @@ namespace ServerCore
         /// </summary>
         public void ClientSendForEach()
         {
+            uint fakeID = 1000;
+
             lock (_lock)
             {
                 foreach (ServerSession session in serverSessions)
                 {
-                    C_Chat chat = new C_Chat(1000, "sg");
+                    C_Chat chat = new C_Chat();
+                    chat.playerId = fakeID++;
+                    chat.chat = "sg";
+
                     session.Send(chat.Write());
                 }
             }
         }
 
+        /// <summary>
+        /// 서버와 연결된 클라이언트 세션 체크용 함수
+        /// </summary>
+        public void CheckSessions()
+        {
+            foreach (KeyValuePair<int, ClientSession> session in clientSessions)
+                Console.WriteLine($"서버는 [세션:{session.Value.sessionId}] 유지중.");
+        }
+
+        /// <summary>
+        /// 서버와 연결된 클라이언트 세션을 딕셔너리에서 제거합니다.
+        /// </summary>
+        /// <param name="session">제거할 세션</param>
+        public void Kick(Session session)
+        {
+            lock (_lock)
+            {
+                if (clientSessions.TryGetValue(session.sessionId, out _))
+                    clientSessions.Remove(session.sessionId);
+            }    
+        }
+
+        public ClientSession Find(int sessionId)
+        {
+            return clientSessions[sessionId];
+        }
 
         /// <summary>
         /// 클라이언트가 서버와의 연결고리인 세션을 만듭니다.
@@ -58,9 +91,9 @@ namespace ServerCore
             {
                 ClientSession session = new ClientSession();
 
-                session.sessionId = ++this.sessionId;
+                session.sessionId = ++_sessionId;
 
-                clientSessions.Add(session);
+                clientSessions.Add(session.sessionId, session);
                 return session;
             }
         }

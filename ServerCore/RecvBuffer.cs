@@ -19,7 +19,7 @@ namespace ServerCore
         /// </summary>
         public ArraySegment<byte> WriteSegment
         {
-            get => new ArraySegment<byte>(buffer.Array, buffer.Offset + _usedSize, _freeSize);
+            get => new ArraySegment<byte>(buffer.Array, buffer.Offset, _freeSize);
         }
 
         const int BUFFERSIZE = 65535;
@@ -60,7 +60,7 @@ namespace ServerCore
             if (_freeSize < usedSize)
                 return false;
 
-            _usedSize = usedSize;
+            _usedSize += usedSize;
             return true;
         }
     }

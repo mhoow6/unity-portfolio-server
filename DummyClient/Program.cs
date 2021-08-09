@@ -10,9 +10,11 @@ namespace DummyClient
         {
             Container container = Container.Instance;
             Connector connector = new Connector();
-            connector.Connect(container.host, () => { return SessionManager.Instance.MakeServerSession(); }, 1);
+            connector.Connect(container.host, () => { return SessionManager.Instance.MakeServerSession(); }, 5);
 
-            while (true)
+            ushort count = 0;
+
+            while (count < 10)
             {
                 try
                 {
@@ -22,8 +24,12 @@ namespace DummyClient
                 {
                     Console.WriteLine($"[Client] {e.ToString()}");
                 }
+                finally
+                {
+                    Thread.Sleep(250);
+                }
 
-                Thread.Sleep(1000);
+                count++;
             }
         }
     }
