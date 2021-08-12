@@ -14,7 +14,11 @@ namespace ServerCore
         protected int ERROR { get => -1; }
 
         // 연결된 소켓
-        Socket socket;
+        public Socket socket
+        {
+            get;
+            private set;
+        }
 
         SocketAsyncEventArgs sendAsyncArgs = new SocketAsyncEventArgs();
         Queue<ArraySegment<byte>> sendQueue = new Queue<ArraySegment<byte>>();
@@ -203,12 +207,9 @@ namespace ServerCore
                     break;
 
                 // 헤더에 기록된 패킷 총 길이
-                byte[] bSize = new byte[sizeof(ushort)];
+                byte[] bSize = new byte[sizeof(int)];
                 Array.Copy(buffer.Array, buffer.Offset, bSize, 0, bSize.Length);
-                ushort size = BitConverter.ToUInt16(bSize);
-
-                if (buffer.Count < size)
-                    break;
+                int size = BitConverter.ToInt32(bSize);
 
                 // 패킷 매니저에게 패킷 처리 부탁
                 byte[] bData = new byte[size];
@@ -230,9 +231,18 @@ namespace ServerCore
 
     public class ServerSession : PacketSession
     {
+        public FileRoom fileRoom = new FileRoom();
+
         public override void OnConnected(EndPoint endPoint)
         {
-            Console.WriteLine($"[ServerSession] 서버와 연결되었습니다.");
+            try
+            {
+                SessionManager.Instance.ClientSendForEach();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"[Client] {e.ToString()}");
+            }
         }
 
         public override void OnDisconnected(EndPoint endPoint)

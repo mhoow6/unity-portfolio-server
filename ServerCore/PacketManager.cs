@@ -20,15 +20,17 @@ namespace ServerCore
         {
             handler.Add((ushort)PacketID.C_Chat, PacketHandler.C_ChatHandler);
             handler.Add((ushort)PacketID.S_Chat, PacketHandler.S_ChatHandler);
+            handler.Add((ushort)PacketID.C_FileRequest, PacketHandler.C_FileRequestHandler);
+            handler.Add((ushort)PacketID.S_FileResponse, PacketHandler.S_FileResponseHandler);
         }
 
         
         public void OnRecvPacket(Session session, ArraySegment<byte> buffer)
         {
-            ushort count = 0;
+            int count = 0;
 
             // 패킷 길이 스킵
-            count += sizeof(ushort);
+            count += sizeof(int);
 
             // 패킷 ID 파싱
             Array.Copy(buffer.Array, buffer.Offset + count, bPacketID, 0, sizeof(ushort));

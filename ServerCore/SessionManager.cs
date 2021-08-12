@@ -10,11 +10,10 @@ namespace ServerCore
 
         // 1 클라 -> 1 서버세션
         // 단일 클라이언트는 하나의 서버세션만을 갖는다.
-        List<ServerSession> serverSessions = new List<ServerSession>();
+        Dictionary<int, ServerSession> serverSessions = new Dictionary<int, ServerSession>();
 
         // 1 서버 -> n 클라세션
         Dictionary<int, ClientSession> clientSessions = new Dictionary<int, ClientSession>();
-        List<ArraySegment<byte>> pendingBuffs = new List<ArraySegment<byte>>();
         int _sessionId = 0;
 
         Object _lock = new object();
@@ -24,17 +23,13 @@ namespace ServerCore
         /// </summary>
         public void ClientSendForEach()
         {
-            uint fakeID = 1000;
-
             lock (_lock)
             {
-                foreach (ServerSession session in serverSessions)
+                foreach (KeyValuePair<int, ServerSession> session in serverSessions)
                 {
-                    C_Chat chat = new C_Chat();
-                    chat.playerId = fakeID++;
-                    chat.chat = "sg";
+                    C_FileRequest request = new C_FileRequest("monster.pak");
 
-                    session.Send(chat.Write());
+                    session.Value.Send(request.Write());
                 }
             }
         }
@@ -61,9 +56,14 @@ namespace ServerCore
             }    
         }
 
-        public ClientSession Find(int sessionId)
+        public ClientSession FindClientSession(int sessionId)
         {
             return clientSessions[sessionId];
+        }
+
+        public ServerSession FindServerSession(int sessionId)
+        {
+            return serverSessions[sessionId];
         }
 
         /// <summary>
@@ -75,8 +75,9 @@ namespace ServerCore
             lock (_lock)
             {
                 ServerSession session = new ServerSession();
+                session.sessionId = ++_sessionId;
 
-                serverSessions.Add(session);
+                serverSessions.Add(session.sessionId, session);
                 return session;
             }
         }
@@ -90,7 +91,6 @@ namespace ServerCore
             lock (_lock)
             {
                 ClientSession session = new ClientSession();
-
                 session.sessionId = ++_sessionId;
 
                 clientSessions.Add(session.sessionId, session);

@@ -5,16 +5,32 @@ using System.IO;
 
 namespace ServerCore
 {
-    public class FileReader
+    public class FileContainer
     {
+        public static FileContainer Instance { get; } = new FileContainer();
+
         string root;
         Dictionary<string, byte[]> files = new Dictionary<string, byte[]>();
+        const int MAX_SEND_DATA = 65000;
+
 
         // C:\Users\mhoow\AppData\LocalLow\JWY\AssetBundles
-        public FileReader(string _root = "C:\\Users\\mhoow\\AppData\\LocalLow\\JWY\\AssetBundles")
+        public FileContainer(string _root = "C:\\Users\\mhoow\\AppData\\LocalLow\\JWY\\AssetBundles")
         {
             root = _root;
             ReadChildrenFile();
+        }
+
+        public ArraySegment<byte> GetFile(int seek, string fileName)
+        {
+            if (files.TryGetValue(fileName, out _))
+            {
+                int seekLength = files[fileName].Length - seek > MAX_SEND_DATA ? MAX_SEND_DATA : files[fileName].Length - seek;
+                
+                return new ArraySegment<byte>(files[fileName], seek, seekLength);
+            }
+
+            return null;
         }
 
         void ReadChildrenFile()
