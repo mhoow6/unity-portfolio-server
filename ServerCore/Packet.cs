@@ -256,7 +256,9 @@ namespace ServerCore
         public sealed override ArraySegment<byte> Write()
         {
             int count = 0;
-            ArraySegment<byte> reserveBuffer = SendBufferHelper.Reserve(DEFAULT_RESERVE_SIZE);
+            int reserveSize = file.Length > DEFAULT_RESERVE_SIZE ? file.Length : DEFAULT_RESERVE_SIZE;
+
+            ArraySegment<byte> reserveBuffer = SendBufferHelper.Reserve(reserveSize);
 
             // size count
             count += sizeof(int);
