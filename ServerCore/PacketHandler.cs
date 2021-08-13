@@ -34,6 +34,8 @@ namespace ServerCore
             ArraySegment<byte> sendBuffer = response.Write();
 
             SessionManager.Instance.FindClientSession(session.sessionId).Send(sendBuffer);
+
+            response = null;
         }
 
         public static void S_FileResponseHandler(Session session, ArraySegment<byte> buffer)
@@ -51,11 +53,6 @@ namespace ServerCore
             {
                 C_FileRequest request = new C_FileRequest(response.fileName, container.seek);
                 SessionManager.Instance.FindServerSession(session.sessionId).Send(request.Write());
-            }
-            else
-            {
-                Console.WriteLine($"파일 조립을 시작합니다.");
-                container.MakeFile(response.fileName);
             }
 
         }
